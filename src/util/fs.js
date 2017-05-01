@@ -171,7 +171,7 @@ async function buildActionsForCopy(
       return;
     }
 
-    const srcStat = await lstat(src);
+    const srcStat = data.srcStat || await lstat(src);
     let srcFiles;
 
     if (srcStat.isDirectory()) {
@@ -229,9 +229,10 @@ async function buildActionsForCopy(
         for (const file of destFiles) {
           if (srcFiles.indexOf(file) < 0) {
             const loc = path.join(dest, file);
-            possibleExtraneous.add(loc);
-
-            if ((await lstat(loc)).isDirectory()) {
+            const isdir = (await lstat(loc)).isDirectory();
+            if (!isdir && data.srcStat) {
+              possibleExtraneous.add(loc);
+            } else if (isdir && !data.srcStat) {
               for (const file of await readdir(loc)) {
                 possibleExtraneous.add(path.join(loc, file));
               }
@@ -505,6 +506,7 @@ export async function copyBulk(
 
   const currentlyWriting: { [dest: string]: Promise<void> } = {};
 
+  const mkdirCache = {};
   await promise.queue(fileActions, async (data): Promise<void> => {
     let writePromise: Promise<void>;
     while (writePromise = currentlyWriting[data.dest]) {
@@ -515,6 +517,11 @@ export async function copyBulk(
     return currentlyWriting[data.dest] = (async function() : Promise<void> {
       reporter.verbose(reporter.lang('verboseFileCopy', data.src, data.dest));
       try {
+        const dir = path.dirname(data.dest);
+        if (!mkdirCache[dir]) {
+          mkdirCache[dir] = mkdirp(dir);
+        }
+        await mkdirCache[dir];
         await fcopy(data.src, data.dest, {mode: data.mode});
         await utimes(data.dest, data.atime, data.mtime);
         events.onProgress(data.dest);

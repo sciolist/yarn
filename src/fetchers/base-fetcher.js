@@ -45,7 +45,7 @@ export default class BaseFetcher {
       await fs.mkdirp(dest);
 
       // fetch package and get the hash
-      const {hash} = await this._fetch();
+      const {hash, stats} = await this._fetch();
 
       // load the new normalized manifest
       const pkg = await this.config.readManifest(dest, this.registry);
@@ -54,6 +54,7 @@ export default class BaseFetcher {
         artifacts: [],
         remote: this.remote,
         registry: this.registry,
+        stats,
         hash,
       }, null, '  '));
 

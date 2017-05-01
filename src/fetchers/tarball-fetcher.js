@@ -73,9 +73,14 @@ export default class TarballFetcher extends BaseFetcher {
     validateStream: crypto.HashStream,
     extractorStream: stream.Transform,
   } {
+    const stats = {};
     const validateStream = new crypto.HashStream();
     const extractorStream = gunzip();
     const untarStream = tarFs.extract(this.dest, {
+      map: (header) => {
+        stats[header.name] = header;
+        return header;
+      },
       strip: 1,
       dmode: 0o555, // all dirs should be readable
       fmode: 0o444, // all files should be readable
@@ -90,6 +95,7 @@ export default class TarballFetcher extends BaseFetcher {
         const actualHash = validateStream.getHash();
         if (!expectHash || expectHash === actualHash) {
           resolve({
+            stats: stats,
             hash: actualHash,
           });
         } else {

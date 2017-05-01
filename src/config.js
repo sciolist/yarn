@@ -443,6 +443,7 @@ export default class Config {
         hash: metadata.hash,
         remote: metadata.remote,
         registry: metadata.registry,
+        stats: metadata.stats,
       };
     });
   }

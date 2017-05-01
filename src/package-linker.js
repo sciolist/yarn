@@ -13,6 +13,7 @@ import * as promise from './util/promise.js';
 import {entries} from './util/misc.js';
 import * as fs from './util/fs.js';
 import lockMutex from './util/mutex.js';
+import nodefs from 'fs';
 
 const invariant = require('invariant');
 const cmdShim = promise.promisify(require('cmd-shim'));
@@ -164,15 +165,36 @@ export default class PackageLinker {
         if (hardlinksEnabled) {
           copiedSrcs.set(src, dest);
         }
-        copyQueue.set(dest, {
-          src,
-          dest,
-          onFresh() {
-            if (ref) {
-              ref.setFresh(true);
-            }
-          },
-        });
+
+        if (metadata.stats) {
+          Object.values(metadata.stats).filter((s) => s.type !== 'directory').forEach(function stat(stat) {
+            const name = stat.name;
+            const destPath = path.join(dest, name);
+            const srcPath = path.join(src, name);
+            const srcStat = Object.assign(Object.create(nodefs.Stats.prototype), stat);
+            srcStat.mtime = new Date(srcStat.mtime);
+            srcStat.atime = new Date(srcStat.atime);
+            srcStat.isFile = () => srcStat.type === 'file';
+            srcStat.isDirectory = () => srcStat.type === 'directory';
+            srcStat.isSymbolicLink = () => srcStat.type === 'junction';
+            copyQueue.set(destPath, {
+              src: srcPath,
+              dest: destPath,
+              srcStat,
+              onFresh() { if(ref) ref.setFresh(true); },
+            });
+          });
+        } else {
+          copyQueue.set(dest, {
+            src,
+            dest,
+            onFresh() {
+              if (ref) {
+                ref.setFresh(true);
+              }
+            },
+          });
+        }
       } else {
         hardlinkQueue.set(dest, {
           src: copiedDest,
